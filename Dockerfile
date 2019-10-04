@@ -4,7 +4,8 @@ MAINTAINER David Personette <dperson@gmail.com>
 # Install samba
 RUN apk --no-cache --no-progress upgrade && \
     apk --no-cache --no-progress add bash samba shadow tini && \
-    adduser -D -G users -H -S -g 'Samba User' -h /tmp smbuser && \
+    addgroup -S smb && \
+    adduser -S -D -H -h /tmp -s /sbin/nologin -G smb -g 'Samba User' smbuser &&\
     file="/etc/samba/smb.conf" && \
     sed -i 's|^;* *\(log file = \).*|   \1/dev/stdout|' $file && \
     sed -i 's|^;* *\(load printers = \).*|   \1no|' $file && \
@@ -34,6 +35,8 @@ RUN apk --no-cache --no-progress upgrade && \
     echo '   vfs objects = acl_xattr catia fruit recycle streams_xattr' \
                 >>$file && \
     echo '   recycle:keeptree = yes' >>$file && \
+    echo '   recycle:maxsize = 0' >>$file && \
+    echo '   recycle:repository = .deleted' >>$file && \
     echo '   recycle:versions = yes' >>$file && \
     echo '' >>$file && \
     echo '   # Security' >>$file && \
@@ -53,6 +56,8 @@ RUN apk --no-cache --no-progress upgrade && \
     echo '   fruit:advertise_fullsync = true' >>$file && \
     echo '   fruit:time machine = yes' >>$file && \
     echo '   smb2 leases = yes' >>$file && \
+    echo '   aio read size = 0' >>$file && \
+    echo '   aio write size = 0' >>$file && \
     echo '' >>$file && \
     rm -rf /tmp/*
 
@@ -61,8 +66,9 @@ COPY samba.sh /usr/bin/
 EXPOSE 137/udp 138/udp 139 445
 
 HEALTHCHECK --interval=60s --timeout=15s \
-             CMD smbclient -L '\\localhost' -U '%' -m SMB3
+            CMD smbclient -L '\\localhost' -U '%' -m SMB3
 
-VOLUME ["/etc/samba"]
+VOLUME ["/etc", "/var/cache/samba", "/var/lib/samba", "/var/log/samba",\
+            "/run/samba"]
 
 ENTRYPOINT ["/sbin/tini", "--", "/usr/bin/samba.sh"]

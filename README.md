@@ -16,13 +16,13 @@ By default there are no shares configured, additional ones can be added.
 
 ## Hosting a Samba instance
 
-    sudo docker run -it -p 139:139 -p 445:445 -d dperson/samba
+    sudo docker run -it -p 139:139 -p 445:445 -d dperson/samba -p
 
 OR set local storage:
 
     sudo docker run -it --name samba -p 139:139 -p 445:445 \
                 -v /path/to/directory:/mount \
-                -d dperson/samba
+                -d dperson/samba -p
 
 ## Configuration
 
@@ -49,16 +49,18 @@ OR set local storage:
                     [browsable] default:'yes' or 'no'
                     [readonly] default:'yes' or 'no'
                     [guest] allowed default:'yes' or 'no'
+                    NOTE: for user lists below, usernames are separated by ','
                     [users] allowed default:'all' or list of allowed users
                     [admins] allowed default:'none' or list of admin users
                     [writelist] list of users that can write to a RO share
                     [comment] description of share
-        -u "<username;password>[;ID;group]"       Add a user
+        -u "<username;password>[;ID;group;GID]"       Add a user
                     required arg: "<username>;<passwd>"
                     <username> for user
                     <password> for user
                     [ID] for user
                     [group] for user
+                    [GID] for group
         -w "<workgroup>"       Configure the workgroup (domain) samba should use
                     required arg: "<workgroup>"
                     <workgroup> for samba
@@ -72,15 +74,15 @@ OR set local storage:
 ENVIRONMENT VARIABLES
 
  * `CHARMAP` - As above, configure character mapping
- * `GLOBAL` - As above, configure a global option
+ * `GLOBAL` - As above, configure a global option (See NOTE3 below)
  * `IMPORT` - As above, import a smbpassword file
  * `NMBD` - As above, enable nmbd
  * `PERMISSIONS` - As above, set file permissions on all shares
  * `RECYCLE` - As above, disable recycle bin
- * `SHARE` - As above, setup a share
+ * `SHARE` - As above, setup a share (See NOTE3 below)
  * `SMB` - As above, disable SMB2 minimum version
  * `TZ` - Set a timezone, IE `EST5EDT`
- * `USER` - As above, setup a user
+ * `USER` - As above, setup a user (See NOTE3 below)
  * `WIDELINKS` - As above, allow access wide symbolic links
  * `WORKGROUP` - As above, set workgroup
  * `USERID` - Set the UID for the samba server
@@ -93,6 +95,9 @@ will also want to expose port 137 and 138 with `-p 137:137/udp -p 138:138/udp`.
 **NOTE2**: there are reports that `-n` and `NMBD` only work if you have the
 container configured to use the hosts network stack.
 
+**NOTE3**: optionally supports additional variables starting with the same name,
+IE `SHARE` also will work for `SHARE2`, `SHARE3`... `SHAREx`, etc.
+
 ## Examples
 
 Any of the commands can be run at creation with `docker run` or later with
@@ -100,11 +105,11 @@ Any of the commands can be run at creation with `docker run` or later with
 
 ### Setting the Timezone
 
-    sudo docker run -it -e TZ=EST5EDT -p 139:139 -p 445:445 -d dperson/samba
+    sudo docker run -it -e TZ=EST5EDT -p 139:139 -p 445:445 -d dperson/samba -p
 
 ### Start an instance creating users and shares:
 
-    sudo docker run -it -p 139:139 -p 445:445 -d dperson/samba \
+    sudo docker run -it -p 139:139 -p 445:445 -d dperson/samba -p \
                 -u "example1;badpass" \
                 -u "example2;badpass" \
                 -s "public;/share" \
@@ -113,6 +118,35 @@ Any of the commands can be run at creation with `docker run` or later with
                 -s "example2 private share;/example2;no;no;no;example2"
 
 # User Feedback
+
+## Troubleshooting
+
+* You get the error `Access is denied` (or similar) on the client and/or see
+`change_to_user_internal: chdir_current_service() failed!` in the container
+logs.
+
+Add the `-p` option to the end of your options to the container, or set the
+`PERMISSIONS` environment variable.
+
+    sudo docker run -it --name samba -p 139:139 -p 445:445 \
+                -v /path/to/directory:/mount \
+                -d dperson/samba -p
+
+* High memory usage by samba. Multiple people have reported high memory usage
+that's never freed by the samba processes. Recommended work around below:
+
+Add the `-m 512m` option to docker run command, or `mem_limit:` in
+docker_compose.yml files, IE:
+
+    sudo docker run -it --name samba -m 512m -p 139:139 -p 445:445 \
+                -v /path/to/directory:/mount \
+                -d dperson/samba -p
+
+* Attempting to connect with the `smbclient` commandline tool. By default samba
+still tries to use SMB1, which is depriciated and has security issues. This
+container defaults to SMB2, which for no decernable reason even though it's
+supported is disabled by default so run the command as `smbclient -m SMB3`, then
+any other options you would specify.
 
 ## Issues
 
